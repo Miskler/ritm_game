@@ -1,0 +1,1119 @@
+[gd_scene load_steps=23 format=3 uid="uid://bcj8ktkwljj60"]
+
+[ext_resource type="FontFile" uid="uid://c6r8r8i8mb4i6" path="res://IBMPlexSans-Medium.ttf" id="1_mnj52"]
+[ext_resource type="Script" path="res://main_game.gd" id="1_uyejn"]
+[ext_resource type="PackedScene" uid="uid://fyawyhvn4e3l" path="res://back/main.tscn" id="2_qktan"]
+[ext_resource type="PackedScene" uid="uid://cmsgggyogg5hq" path="res://player.tscn" id="3_5ukh5"]
+
+[sub_resource type="Theme" id="Theme_ka2el"]
+default_font = ExtResource("1_mnj52")
+default_font_size = 23
+Button/font_sizes/font_size = 22
+Label/font_sizes/font_size = 40
+
+[sub_resource type="Shader" id="Shader_mulhi"]
+code = "shader_type canvas_item;
+
+const int MAX_MARCHES = 25;
+const float TOLERANCE = 0.0001;
+const float pi = 3.141592654;
+const float tao = (2.0*PI);
+
+mat2 ROT(float a){
+	return mat2(vec2(cos(a),sin(a)),vec2(-sin(a),cos(a)));
+}
+
+// License: Unknown, author: nmz (twitter: @stormoid), found: https://www.shadertoy.com/view/NdfyRM
+float sRGB1(float t) { return mix(1.055*pow(t, 1./2.4) - 0.055, 12.92*t, step(t, 0.0031308)); }
+// License: Unknown, author: nmz (twitter: @stormoid), found: https://www.shadertoy.com/view/NdfyRM
+vec3 sRGB(in vec3 c) { return vec3 (sRGB1(c.x), sRGB1(c.y), sRGB1(c.z)); }
+
+// License: WTFPL, author: sam hocevar, found: https://stackoverflow.com/a/17897228/418488
+const vec4 hsv2rgb_K = vec4(1.0, 2.0 / 3.0, 1.0 / 3.0, 3.0);
+vec3 hsv2rgb(vec3 c) {
+  vec3 p = abs(fract(c.xxx + hsv2rgb_K.xyz) * 6.0 - hsv2rgb_K.www);
+  return c.z * mix(hsv2rgb_K.xxx, clamp(p - hsv2rgb_K.xxx, 0.0, 1.0), c.y);
+}
+
+float apolloian(vec3 p, float s, out float h) {
+  float scale = 1.0;
+  for(int i=0; i < 5; ++i) {
+    p = -1.0 + 2.0*fract(0.5*p+0.5);
+    float r2 = dot(p,p);
+    float k  = s/r2;
+    p       *= k;
+    scale   *= k;
+  }
+  
+  vec3 ap = abs(p/scale);  
+  float d = length(ap.xy);
+  d = min(d, ap.z);
+
+  float hh = 0.0;
+  if (d == ap.z){
+    hh += 0.5;
+  }
+  h = hh;
+  return d;
+}
+
+float df(vec2 p, out float h) {
+  const float fz = 1.0-0.0;
+  float z = 1.55*fz;
+  p /= z;
+  vec3 p3 = vec3(p,0.1);
+  p3.xz*=ROT(0.5*0.1*TIME);
+  p3.yz*=ROT(sqrt(0.5)*0.1*TIME);
+  float d = apolloian(p3, 1.0/fz, h);
+  d *= z;
+  return d;
+}
+
+float shadow(vec2 lp, vec2 ld, float mint, float maxt) {
+  const float ds = 1.0-0.4;
+  float t = mint;
+  float nd = 1E6;
+  float h;
+  const float soff = 0.05;
+  const float smul = 1.5;
+  for (int i=0; i < MAX_MARCHES; ++i) {
+    vec2 p = lp + ld*t;
+    float d = df(p, h);
+    if (d < TOLERANCE || t >= maxt) {
+      float sd = 1.0-exp(-smul*max(t/maxt-soff, 0.0));
+      return t >= maxt ? mix(sd, 1.0, smoothstep(0.0, 0.025, nd)) : sd;
+    }
+    nd = min(nd, d);
+    t += ds*d;
+  }
+  float sd = 1.0-exp(-smul*max(t/maxt-soff, 0.0));
+  return sd;
+}
+
+vec3 effect(vec2 p, vec2 q) {
+  float a = 0.1*TIME;
+
+  vec2  lightPos  = vec2(0.0, 1.0);
+  lightPos        *= (ROT(sqrt(0.5)*0.1*TIME));
+  vec2  lightDiff = lightPos - p;
+  float lightD2   = dot(lightDiff,lightDiff);
+  float lightLen  = sqrt(lightD2);
+  vec2  lightDir  = lightDiff / lightLen;
+  vec3  lightPos3 = vec3(lightPos, 0.0);
+  vec3  p3        = vec3(p, -1.0);
+  float lightLen3 = distance(lightPos3, p3);
+  vec3  lightDir3 = normalize(lightPos3-p3);
+  vec3  n3        = vec3(0.0, 0.0, 1.0);
+  float diff      = max(dot(lightDir3, n3), 0.0);
+
+  float h;
+  float d   = df(p, h);
+  float ss  = shadow(p,lightDir, 0.005, lightLen);
+  vec3 bcol = hsv2rgb(vec3(fract(h-0.2*length(p)+0.25*TIME), 0.666, 1.0));
+
+  vec3 col = vec3(0.0);
+  col += mix(0., 1.0, diff)*0.5*mix(0.1, 1.0, ss)/(lightLen3*lightLen3);
+  col += exp(-300.0*abs(d))*sqrt(bcol);
+  col += exp(-40.0*max(lightLen-0.02, 0.0));
+ 
+  return col;
+}
+
+void fragment() {
+  vec2 q = FRAGCOORD.xy/(1.0 / SCREEN_PIXEL_SIZE).xy;
+  vec2 p = -1. + 2. * q;
+  p.x *= (1.0 / SCREEN_PIXEL_SIZE).x/(1.0 / SCREEN_PIXEL_SIZE).y;
+
+  vec3 col = effect(p, q);
+  col *= mix(0.0, 1.0, smoothstep(0.0, 4.0, TIME));
+  col = sRGB(col);
+  
+  COLOR = vec4(col, 1.0);
+}"
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_k13lv"]
+shader = SubResource("Shader_mulhi")
+
+[sub_resource type="Shader" id="Shader_vslxm"]
+code = "shader_type canvas_item;
+
+// CC0: Truchet + Kaleidoscope FTW
+//  Bit of experimenting with kaleidoscopes and truchet turned out nice
+//  Quite similar to an earlier shader I did but I utilized a different truchet pattern this time
+
+uniform float animate_speed = 0.25;
+uniform float resolution = 1.0;
+const float pi = 3.141592654;
+
+// License: Unknown, author: Unknown, found: don't remember
+vec4 alphaBlend(vec4 back, vec4 front) {
+  float w = front.w + back.w*(1.0-front.w);
+  vec3 xyz = (front.xyz*front.w + back.xyz*back.w*(1.0-front.w))/w;
+  return w > 0.0 ? vec4(xyz, w) : vec4(0.0);
+
+}
+mat2 ROT(float a){
+	return mat2(vec2(cos(a),sin(a)),vec2(-sin(a),cos(a)));
+}
+float PCOS(float x){
+	return 0.5+0.5*cos(x);
+}
+
+// License: Unknown, author: Unknown, found: don't remember
+vec3 alphaBlend34(vec3 back, vec4 front) {
+  return mix(back, front.xyz, front.w);
+}
+
+// License: Unknown, author: Unknown, found: don't remember
+float hashf(float co) {
+  return fract(sin(co*12.9898) * 13758.5453);
+}
+
+// License: Unknown, author: Unknown, found: don't remember
+float hashv(vec2 p) {
+  float a = dot(p, vec2 (127.1, 311.7));
+  return fract(sin (a)*43758.5453123);
+}
+
+// License: Unknown, author: Unknown, found: don't remember
+float tanh_approx(float x) {
+  //  Found this somewhere on the interwebs
+  //  return tanh(x);
+  float x2 = x*x;
+  return clamp(x*(27.0 + x2)/(27.0+9.0*x2), -1.0, 1.0);
+}
+
+// License: MIT, author: Inigo Quilez, found: https://www.iquilezles.org/www/articles/smin/smin.htm
+float pmin(float a, float b, float k) {
+  float h = clamp(0.5+0.5*(b-a)/k, 0.0, 1.0);
+  return mix(b, a, h) - k*h*(1.0-h);
+}
+
+// License: MIT, author: Inigo Quilez, found: https://www.iquilezles.org/www/index.htm
+vec3 postProcess(vec3 col, vec2 q) {
+  col = clamp(col, 0.0, 1.0);
+  col = pow(col, vec3(1.0/2.2));
+  col = col*0.6+0.4*col*col*(3.0-2.0*col);
+  col = mix(col, vec3(dot(col, vec3(0.33))), -0.4);
+  col *=0.5+0.5*pow(19.0*q.x*q.y*(1.0-q.x)*(1.0-q.y),0.7);
+  return col;
+}
+
+float pmax(float a, float b, float k) {
+  return -pmin(-a, -b, k);
+}
+
+float pabs(float a, float k) {
+  return pmax(a, -a, k);
+}
+
+vec2 toPolar(vec2 p) {
+  return vec2(length(p), atan(p.y, p.x));
+}
+
+vec2 toRect(vec2 p) {
+  return vec2(p.x*cos(p.y), p.x*sin(p.y));
+}
+
+// License: MIT OR CC-BY-NC-4.0, author: mercury, found: https://mercury.sexy/hg_sdf/
+float modMirror1(inout float p, float size) {
+  float halfsize = size*0.5;
+  float c = floor((p + halfsize)/size);
+  p = mod(p + halfsize,size) - halfsize;
+  p *= mod(c, 2.0)*2.0 - 1.0;
+  return c;
+}
+
+float smoothKaleidoscope(inout vec2 p, float sm, float rep) {
+  vec2 hp = p;
+
+  vec2 hpp = toPolar(hp);
+  float rn = modMirror1(hpp.y, 2.0*PI/rep);
+
+  float sa = PI/rep - pabs(PI/rep - abs(hpp.y), sm);
+  hpp.y = sign(hpp.y)*(sa);
+
+  hp = toRect(hpp);
+
+  p = hp;
+
+  return rn;
+}
+
+// The path function
+vec3 offset(float z) {
+  float a = z;
+  vec2 p = -0.075*(vec2(cos(a), sin(a*sqrt(2.0))) + vec2(cos(a*sqrt(0.75)), sin(a*sqrt(0.5))));
+  return vec3(p, z);
+}
+
+// The derivate of the path function
+//  Used to generate where we are looking
+vec3 doffset(float z) {
+  float eps = 0.1;
+  return 0.5*(offset(z + eps) - offset(z - eps))/eps;
+}
+
+// The second derivate of the path function
+//  Used to generate tilt
+vec3 ddoffset(float z) {
+  float eps = 0.1;
+  return 0.125*(doffset(z + eps) - doffset(z - eps))/eps;
+}
+
+vec2 cell_df(float r, vec2 np, vec2 mp, vec2 off) {
+
+  vec2 n0 = normalize(vec2(1.0, 1.0));
+  vec2 n1 = normalize(vec2(1.0, -1.0));
+
+  np += off;
+  mp -= off;
+  
+  float hh = hashv(np);
+  float h0 = hh;
+
+  vec2  p0 = mp;  
+  p0 = abs(p0);
+  p0 -= 0.5;
+  float d0 = length(p0);
+  float d1 = abs(d0-r); 
+
+  float dot0 = dot(n0, mp);
+  float dot1 = dot(n1, mp);
+
+  float d2 = abs(dot0);
+  float t2 = dot1;
+  d2 = abs(t2) > sqrt(0.5) ? d0 : d2;
+
+  float d3 = abs(dot1);
+  float t3 = dot0;
+  d3 = abs(t3) > sqrt(0.5) ? d0 : d3;
+
+
+  float d = d0;
+  d = min(d, d1);
+  if (h0 > .85)
+  {
+    d = min(d, d2);
+    d = min(d, d3);
+  }
+  else if(h0 > 0.5)
+  {
+    d = min(d, d2);
+  }
+  else if(h0 > 0.15)
+  {
+    d = min(d, d3);
+  }
+  
+  return vec2(d, (d0-r));
+}
+
+vec2 truchet_df(float r, vec2 p) {
+  vec2 np = floor(p+0.5);
+  vec2 mp = fract(p+0.5) - 0.5;
+  return cell_df(r, np, mp, vec2(0.0));
+}
+
+vec4 plane(vec3 ro, vec3 rd, vec3 pp, vec3 off, float aa, float n) {
+  float h_ = hashf(n);
+  float h0 = fract(1777.0*h_);
+  float h1 = fract(2087.0*h_);
+  float h2 = fract(2687.0*h_);
+  float h3 = fract(3167.0*h_);
+  float h4 = fract(3499.0*h_);
+
+  float l = length(pp - ro);
+
+  vec3 hn;
+  vec2 p = (pp-off*vec3(1.0, 1.0, 0.0)).xy;
+  p *= ROT(0.5*(h4 - 0.5)*TIME);
+  float rep = 2.0*round(mix(5.0, 30.0, h2));
+  float sm = 0.05*20.0/rep;
+  float sn = smoothKaleidoscope(p, sm, rep);
+  p *= ROT(2.0*PI*h0+0.025*TIME);
+  float z = mix(0.2, 0.4, h3);
+  p /= z;
+  p+=0.5+floor(h1*1000.0);
+  float tl = tanh_approx(0.33*l);
+  float r = mix(0.30, 0.45, PCOS(0.1*n));
+  vec2 d2 = truchet_df(r, p);
+  d2 *= z;
+  float d = d2.x;
+  float lw =0.025*z; 
+  d -= lw;
+  
+  vec3 col = mix(vec3(1.0), vec3(0.0), smoothstep(aa, -aa, d));
+  col = mix(col, vec3(0.0), smoothstep(mix(1.0, -0.5, tl), 1.0, sin(PI*100.0*d)));
+//  float t0 = smoothstep(aa, -aa, -d2.y-lw);
+  col = mix(col, vec3(0.0), step(d2.y, 0.0));
+  //float t = smoothstep(3.0*lw, 0.0, -d2.y);
+//  float t = smoothstep(aa, -aa, -d2.y-lw);
+  float t = smoothstep(aa, -aa, -d2.y-3.0*lw)*mix(0.5, 1.0, smoothstep(aa, -aa, -d2.y-lw));
+  return vec4(col, t);
+}
+
+vec3 skyColor(vec3 ro, vec3 rd) {
+  float d = pow(max(dot(rd, vec3(0.0, 0.0, 1.0)), 0.0), 20.0);
+  return vec3(d);
+}
+
+
+vec3 color(vec3 ww, vec3 uu, vec3 vv, vec3 ro, vec2 p){
+  float lp = length(p);
+  vec2 np = p + 1.0/vec2(1920.0*resolution,1080.0*resolution) ;
+  float rdd = (2.0+1.0*tanh_approx(lp));
+//  float rdd = 2.0;
+  vec3 rd = normalize(p.x*uu + p.y*vv + rdd*ww);
+  vec3 nrd = normalize(np.x*uu + np.y*vv + rdd*ww);
+
+   float planeDist = 1.0-0.25;
+   int furthest = 6;
+   int fadeFrom = max(furthest-5, 0);
+
+  float fadeDist = planeDist*float(furthest - fadeFrom);
+  float nz = floor(ro.z / planeDist);
+
+  vec3 skyCol = skyColor(ro, rd);
+
+
+  vec4 acol = vec4(0.0);
+  float cutOff = 0.95;
+  bool cutOut = false;
+
+  // Steps from nearest to furthest plane and accumulates the color 
+  for (int i = 1; i <= furthest; ++i) {
+    float pz = planeDist*nz + planeDist*float(i);
+
+    float pd = (pz - ro.z)/rd.z;
+
+    if (pd > 0.0 && acol.w < cutOff) {
+      vec3 pp = ro + rd*pd;
+      vec3 npp = ro + nrd*pd;
+
+      float aa = 3.0*length(pp - npp);
+
+      vec3 off = offset(pp.z);
+
+      vec4 pcol = plane(ro, rd, pp, off, aa, nz+float(i));
+
+      float nz1 = pp.z-ro.z;
+      float fadeIn = smoothstep(planeDist*float(furthest), planeDist*float(fadeFrom), nz1);
+      float fadeOut = smoothstep(0.0, planeDist*0.1, nz1);
+      pcol.xyz = mix(skyCol, pcol.xyz, fadeIn);
+      pcol.w *= fadeOut;
+      pcol = clamp(pcol, 0.0, 1.0);
+
+      acol = alphaBlend(pcol, acol);
+    } else {
+      cutOut = true;
+      break;
+    }
+
+  }
+
+  vec3 col = alphaBlend34(skyCol, acol);
+// To debug cutouts due to transparency  
+//  col += cutOut ? vec3(1.0, -1.0, 0.0) : vec3(0.0);
+  return col;
+}
+vec3 effect(vec2 p, vec2 q) {
+  float tm  = TIME*animate_speed;
+  vec3 ro   = offset(tm);
+  vec3 dro  = doffset(tm);
+  vec3 ddro = ddoffset(tm);
+
+  vec3 ww = normalize(dro);
+  vec3 uu = normalize(cross(normalize(vec3(0.0,1.0,0.0)+ddro), ww));
+  vec3 vv = normalize(cross(ww, uu));
+
+  vec3 col = color(ww, uu, vv, ro, p);
+  
+  return col;
+}
+void fragment(){
+
+
+
+  vec2 q = FRAGCOORD.xy/(1.0 / SCREEN_PIXEL_SIZE).xy;
+  vec2 p = -1. + 2. * q;
+  p.x *= (1.0 / SCREEN_PIXEL_SIZE).x/(1.0 / SCREEN_PIXEL_SIZE).y;
+  
+  vec3 col = effect(p, q);
+  col *= smoothstep(0.0, 4.0, TIME);
+  col = postProcess(col, q);
+ 
+  COLOR = vec4(col, 1.0);
+}"
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_vbsth"]
+shader = SubResource("Shader_vslxm")
+shader_parameter/animate_speed = 0.25
+shader_parameter/resolution = 1.0
+
+[sub_resource type="Shader" id="Shader_ivoxc"]
+code = "/*
+	スペクトラム表示シェーダー by あるる（きのもと 結衣） @arlez80
+	Spectrum Displaying Shader by KINOMOTO Yui
+
+	MIT License
+*/
+shader_type canvas_item;
+render_mode unshaded;
+
+uniform vec4 color :source_color;
+
+
+uniform sampler2D tex;
+uniform float hz0;
+uniform float hz1;
+uniform float hz2;
+uniform float hz3;
+uniform float hz4;
+uniform float hz5;
+uniform float hz6;
+uniform float hz7;
+uniform float hz8;
+uniform float hz9;
+uniform float hz10;
+uniform float hz11;
+uniform float hz12;
+uniform float hz13;
+uniform float hz14;
+uniform float hz15;
+uniform float hz16;
+uniform float hz17;
+uniform float hz18;
+uniform float hz19;
+uniform float hz20;
+uniform float hz21;
+uniform float hz22;
+uniform float hz23;
+uniform float hz24;
+uniform float hz25;
+uniform float hz26;
+uniform float hz27;
+uniform float hz28;
+uniform float hz29;
+uniform float hz30;
+uniform float hz31;
+
+
+uniform float dimming_ratio = 1.f;
+uniform float percentage;
+
+
+float square_rounded(vec2 uv, float width, float radius){
+    uv = uv * 2.0 - 1.0;
+    
+    radius *= width; // make radius go from 0-1 instead of 0-width
+    vec2 abs_uv = abs(uv) - radius;
+    vec2 dist = vec2(max(abs_uv.xy, 0.0));
+    float square = step(width - radius, length(dist));
+    return square;
+}
+
+void fragment( )
+{
+	float p = UV.x * 32.0;
+	float f = mix( hz0, hz1, clamp( p, 0.0, 1.0 ) );
+	f = mix( f, hz2, clamp( p - 1.0, 0.0, 1.0 ) );
+	f = mix( f, hz3, clamp( p - 2.0, 0.0, 1.0 ) );
+	f = mix( f, hz4, clamp( p - 3.0, 0.0, 1.0 ) );
+	f = mix( f, hz5, clamp( p - 4.0, 0.0, 1.0 ) );
+	f = mix( f, hz6, clamp( p - 5.0, 0.0, 1.0 ) );
+	f = mix( f, hz7, clamp( p - 6.0, 0.0, 1.0 ) );
+	f = mix( f, hz8, clamp( p - 7.0, 0.0, 1.0 ) );
+	f = mix( f, hz9, clamp( p - 8.0, 0.0, 1.0 ) );
+	f = mix( f, hz10, clamp( p - 9.0, 0.0, 1.0 ) );
+	f = mix( f, hz11, clamp( p - 10.0, 0.0, 1.0 ) );
+	f = mix( f, hz12, clamp( p - 11.0, 0.0, 1.0 ) );
+	f = mix( f, hz13, clamp( p - 12.0, 0.0, 1.0 ) );
+	f = mix( f, hz14, clamp( p - 13.0, 0.0, 1.0 ) );
+	f = mix( f, hz15, clamp( p - 14.0, 0.0, 1.0 ) );
+	f = mix( f, hz16, clamp( p - 15.0, 0.0, 1.0 ) );
+	f = mix( f, hz17, clamp( p - 16.0, 0.0, 1.0 ) );
+	f = mix( f, hz18, clamp( p - 17.0, 0.0, 1.0 ) );
+	f = mix( f, hz19, clamp( p - 18.0, 0.0, 1.0 ) );
+	f = mix( f, hz20, clamp( p - 19.0, 0.0, 1.0 ) );
+	f = mix( f, hz21, clamp( p - 20.0, 0.0, 1.0 ) );
+	f = mix( f, hz22, clamp( p - 21.0, 0.0, 1.0 ) );
+	f = mix( f, hz23, clamp( p - 22.0, 0.0, 1.0 ) );
+	f = mix( f, hz24, clamp( p - 23.0, 0.0, 1.0 ) );
+	f = mix( f, hz25, clamp( p - 24.0, 0.0, 1.0 ) );
+	f = mix( f, hz26, clamp( p - 25.0, 0.0, 1.0 ) );
+	f = mix( f, hz27, clamp( p - 26.0, 0.0, 1.0 ) );
+	f = mix( f, hz28, clamp( p - 27.0, 0.0, 1.0 ) );
+	f = mix( f, hz29, clamp( p - 28.0, 0.0, 1.0 ) );
+	f = mix( f, hz30, clamp( p - 29.0, 0.0, 1.0 ) );
+	f = mix( f, hz31, clamp( p - 30.0, 0.0, 1.0 ) );
+	
+	
+	vec4 main_tex = texture( tex, vec2( UV.x, 0.0 ) ) * float( 1.0 - UV.y < f );
+	vec3 avg = vec3(color.r/dimming_ratio, color.g/dimming_ratio, color.b/dimming_ratio);
+	main_tex.rgb = mix(color.rgb, avg, step(percentage, UV.x));
+	
+	COLOR = main_tex;
+}"
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_81kfc"]
+shader = SubResource("Shader_ivoxc")
+shader_parameter/color = Color(0.533333, 0.533333, 0.533333, 1)
+shader_parameter/hz0 = 0.296
+shader_parameter/hz1 = 0.36
+shader_parameter/hz2 = 0.283
+shader_parameter/hz3 = 0.378
+shader_parameter/hz4 = 0.274
+shader_parameter/hz5 = 0.187
+shader_parameter/hz6 = 0.169
+shader_parameter/hz7 = null
+shader_parameter/hz8 = null
+shader_parameter/hz9 = null
+shader_parameter/hz10 = null
+shader_parameter/hz11 = null
+shader_parameter/hz12 = 0.0
+shader_parameter/hz13 = null
+shader_parameter/hz14 = null
+shader_parameter/hz15 = null
+shader_parameter/hz16 = null
+shader_parameter/hz17 = null
+shader_parameter/hz18 = null
+shader_parameter/hz19 = null
+shader_parameter/hz20 = null
+shader_parameter/hz21 = null
+shader_parameter/hz22 = null
+shader_parameter/hz23 = null
+shader_parameter/hz24 = null
+shader_parameter/hz25 = null
+shader_parameter/hz26 = 0.532
+shader_parameter/hz27 = null
+shader_parameter/hz28 = null
+shader_parameter/hz29 = null
+shader_parameter/hz30 = null
+shader_parameter/hz31 = null
+shader_parameter/dimming_ratio = 1.0
+shader_parameter/percentage = 0.81
+
+[sub_resource type="GDScript" id="GDScript_gb4w7"]
+script/source = "extends CanvasLayer
+
+@onready var styles = {
+	\"light\": {
+		\"back\": $\"../backs/light\",
+		\"heatl_color\": Color(\"797979\"),
+		\"musik\": \"res://music/DOS-88 - Automatav2.mp3\"
+	},
+	\"red\": {
+		\"back\": $\"../backs/red\",
+		\"heatl_color\": Color(\"1b1b1b\"),
+		\"musik\": \"res://music/Smooth Sailing.mp3\"
+	}
+}
+
+@export var select_style = \"red\"
+
+func _ready():
+	select(select_style)
+	$\"../musik\".select_musik(\"res://music/Checking Manifest.mp3\")
+	$main/win.modulate.a = 0
+	$main/Panel.modulate.a = 1
+	$main/Panel.show()
+	$main/win.hide()
+func select(style):
+	var tween = create_tween()
+	
+	styles[style][\"back\"].show()
+	
+	if styles.has(select_style) and select_style != style:
+		tween.parallel().tween_property(styles[select_style][\"back\"], \"modulate:a\", 0.0, 0.1)
+	tween.parallel().tween_property(styles[style][\"back\"], \"modulate:a\", 1.0, 0.1)
+	tween.parallel().tween_property($main/Panel.get(\"theme_override_styles/panel\"), \"bg_color\", styles[style][\"heatl_color\"], 0.1)
+	tween.parallel().tween_property($main/health/panel.get(\"theme_override_styles/panel\"), \"bg_color\", styles[style][\"heatl_color\"], 0.1)
+	
+	tween.parallel().tween_property($\"../spectrum\".material, \"shader_parameter/color\", styles[style][\"heatl_color\"], 0.1)
+	
+	await tween.finished
+	
+	if styles.has(select_style) and select_style != style:
+		styles[select_style][\"back\"].hide()
+	
+	select_style = style
+
+
+func start_session():
+	var tween = create_tween()
+	
+	tween.parallel().tween_property($main/Panel, \"modulate:a\", 0.0, 0.1)
+	tween.parallel().tween_property($\"../spectrum\".material, \"shader_parameter/dimming_ratio\", 1.5, 0.1)
+	await tween.finished
+	$main/Panel.hide()
+	$\"../player\".start_game(select_style)
+	$\"../musik\".select_musik(styles[select_style][\"musik\"])
+	$\"..\".started_game = true
+	$main/health.block = false
+
+func win_session():
+	$main/win/box/len.text = \"Длительность уровня: \"+str($\"../musik\".musik_size)+\" сек.\\n\\n\"
+	$\"..\".started_game = false
+	$\"../player\".stop_game()
+	$main/health.block = true
+	$\"../musik\".select_musik(\"res://music/Checking Manifest.mp3\")
+	
+	await get_tree().create_timer(0.4)
+	
+	$main/Panel.modulate.a = 0
+	$main/win.show()
+	var tween = create_tween()
+	tween.parallel().tween_property($main/win, \"modulate:a\", 1.0, 0.1)
+	tween.parallel().tween_property($\"../spectrum\".material, \"shader_parameter/dimming_ratio\", 1, 0.1)
+	
+	$main/Panel/VBoxContainer/SpinBox.value_changed($main/Panel/VBoxContainer/SpinBox.value+1)
+	
+	$\"../spavn_event\".wait_time = 0.3
+	$\"../spavn_event\".start()
+
+func stop_session():
+	$\"..\".started_game = false
+	$\"../player\".stop_game()
+	$main/health.block = true
+	$\"../musik\".select_musik(\"res://music/Checking Manifest.mp3\")
+	
+	await get_tree().create_timer(0.4)
+	
+	$main/Panel.show()
+	var tween = create_tween()
+	tween.parallel().tween_property($main/Panel, \"modulate:a\", 1.0, 0.1)
+	tween.parallel().tween_property($\"../spectrum\".material, \"shader_parameter/dimming_ratio\", 1, 0.1)
+	
+	$main/Panel/VBoxContainer/SpinBox.value_changed($main/Panel/VBoxContainer/SpinBox.value+1)
+	
+	$\"../spavn_event\".wait_time = 0.3
+	$\"../spavn_event\".start()
+"
+
+[sub_resource type="GDScript" id="GDScript_50n76"]
+script/source = "extends Control
+
+var health = 3
+
+func _ready():
+	for i in range(health):
+		recovery()
+
+var block = true
+func damage(admin:bool = false) -> bool:
+	if health > 0 and (not block or admin):
+		for i in range($hearts.get_child_count()):
+			var index = ($hearts.get_child_count()-1) - i
+			
+			if not $hearts.get_child(index).dea:
+				$hearts.get_child(index).dead()
+				if health <= 1 and $\"../../..\".started_game:
+					$\"../..\".stop_session()
+				return true
+	
+	return false
+func recovery():
+	var heart = preload(\"res://heart.tscn\").instantiate()
+	$hearts.add_child(heart)
+	heart.recovery()
+	print(\"RECOVERY\")
+
+func _process(_delta):
+	health = $hearts.get_child_count()
+	if health <= 0:
+		var tween = create_tween()
+		tween.tween_property($panel, \"size:x\", 2, 0.1)
+		$\"../..\".stop_session()
+		return
+	
+	$panel.size.x = $hearts.get_child($hearts.get_child_count()-1).size.x+($hearts.get_child($hearts.get_child_count()-1).global_position.x-$hearts.get_child(0).global_position.x)
+	$panel.position.x = $hearts.get_child(0).global_position.x
+"
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_me02r"]
+bg_color = Color(0.105882, 0.105882, 0.105882, 1)
+corner_radius_bottom_right = 10
+corner_radius_bottom_left = 10
+
+[sub_resource type="Shader" id="Shader_u6hvf"]
+code = "shader_type canvas_item;
+
+uniform vec2 global_position;
+uniform vec2 screen_size;
+uniform float force;
+uniform float size;
+uniform float thickness;
+uniform sampler2D SCREEN_TEXTURE : hint_screen_texture;
+
+void fragment(){
+	vec2 center = global_position;
+	float ratio = SCREEN_PIXEL_SIZE.x / SCREEN_PIXEL_SIZE.y;
+	center.x = center.x / screen_size.x;
+	center.x = (center.x - 0.5) / ratio + 0.5;
+	center.y = (screen_size.y - center.y) / screen_size.y;
+	vec2 scaledUV = (SCREEN_UV - vec2(0.5, 0.0) ) / vec2(ratio, 1.0) + vec2(0.5, 0.0);
+	float mask = (1.0 - smoothstep(size-0.1, size, length(scaledUV - center))) * smoothstep(size-thickness-0.1, size-thickness, length(scaledUV - center));
+	vec2 disp = normalize(SCREEN_UV - center) * force * mask;
+	COLOR = texture(SCREEN_TEXTURE, SCREEN_UV - disp);
+}"
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_760ad"]
+shader = SubResource("Shader_u6hvf")
+shader_parameter/global_position = Vector2(300, 400)
+shader_parameter/screen_size = Vector2(1280, 800)
+shader_parameter/force = 1.367
+shader_parameter/size = 0.0
+shader_parameter/thickness = 0.1
+
+[sub_resource type="GDScript" id="GDScript_njpu2"]
+script/source = "extends ColorRect
+
+func start_damage(pos):
+	pos.y = size.y-pos.y
+	
+	material.set_shader_parameter(\"global_position\", pos)
+	material.set_shader_parameter(\"screen_size\", size)
+	material.set_shader_parameter(\"size\", 0.0)
+	
+	var tween = create_tween()
+	tween.tween_property(material, \"shader_parameter/size\", 2.0, 0.5)
+"
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_dc23f"]
+bg_color = Color(0.0980392, 0.0980392, 0.0980392, 1)
+corner_radius_top_left = 20
+corner_radius_top_right = 20
+corner_radius_bottom_right = 20
+corner_radius_bottom_left = 20
+
+[sub_resource type="GDScript" id="GDScript_hauqt"]
+script/source = "extends SpinBox
+
+func value_changed(value):
+	print(\"\")
+	var r = value-$\"../../../health\".health
+	
+	print(r)
+	for i in range(abs(r)):
+		print(\"FOR\")
+		if r < 0:
+			$\"../../../health\".damage(true)
+		elif r > 0:
+			$\"../../../health\".recovery()
+"
+
+[sub_resource type="GDScript" id="GDScript_pjwwr"]
+script/source = "extends OptionButton
+
+var select_id = [\"red\", \"light\"]
+func item_selected(index):
+	$\"../../../..\".select(select_id[index])
+"
+
+[sub_resource type="GDScript" id="GDScript_14thy"]
+script/source = "extends Button
+
+
+func _pressed():
+	$\"../../../Panel\".show()
+	var tween = create_tween()
+	tween.tween_property($\"../..\", \"modulate:a\", 0.0, 0.1)
+	tween.tween_property($\"../../../Panel\", \"modulate:a\", 1.0, 0.1)
+	await tween.finished
+	$\"../..\".hide()
+"
+
+[sub_resource type="GDScript" id="GDScript_a0fbw"]
+script/source = "extends AudioStreamPlayer
+
+const VU_COUNT:int = 32
+const FREQ_MAX:float = 3000.0
+const MIN_DB:float = 80.0
+
+var spectrum_shader:ShaderMaterial = null
+var analyzer:AudioEffectSpectrumAnalyzerInstance = null
+
+var musik_size:int = 0
+var musik_now:int = 0
+
+func _ready( ):
+	self.analyzer = AudioServer.get_bus_effect_instance( 0, 0 )
+	self.spectrum_shader = $\"../spectrum\".material
+
+var twee = false
+func _process(delta:float):
+	var prev_hz:float = 0.0
+	
+	if stream != null and analyzer != null:
+		musik_now = get_playback_position()
+		for i in range( VU_COUNT ):
+			var hz:float = ( i + 1 ) * FREQ_MAX / VU_COUNT
+			var mag:float = self.analyzer.get_magnitude_for_frequency_range( prev_hz, hz ).length( )
+			self.spectrum_shader.set_shader_parameter(\"hz%d\"%i, clamp((linear_to_db(mag)+MIN_DB)/MIN_DB, 0.0, 1.0))
+			prev_hz = hz
+		if not twee:
+			twee = true
+			var tween = create_tween()
+			var val = 0.0
+			if spectrum_shader.get_shader_parameter(\"shader_parameter/dimming_ratio\")!=1:
+				val = float(musik_now)/float(musik_size)
+			
+			tween.parallel().tween_property(spectrum_shader, \"shader_parameter/percentage\", val, 0.2)
+			await tween.finished
+			twee = false
+
+
+func select_musik(musik_path:String):
+	var tween = create_tween()
+	
+	tween.tween_property(self, \"volume_db\", -80, 0.5)
+	musik_now = 0
+	await tween.finished
+	tween = create_tween()
+	stream = load(musik_path)
+	play()
+	self.analyzer = AudioServer.get_bus_effect_instance(0, 0)
+	tween.tween_property(self, \"volume_db\", 0, 0.5)
+	
+	musik_size = stream.get_length()
+"
+
+[node name="main_game" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme = SubResource("Theme_ka2el")
+script = ExtResource("1_uyejn")
+
+[node name="backs" type="Control" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="light" type="ColorRect" parent="backs"]
+visible = false
+material = SubResource("ShaderMaterial_k13lv")
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="red" parent="backs" instance=ExtResource("2_qktan")]
+layout_mode = 1
+
+[node name="ColorRect" type="ColorRect" parent="backs"]
+visible = false
+material = SubResource("ShaderMaterial_vbsth")
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="player" parent="." instance=ExtResource("3_5ukh5")]
+position = Vector2(563, 297)
+
+[node name="spavn_zone" type="Control" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+metadata/_edit_lock_ = true
+
+[node name="spectrum" type="ColorRect" parent="."]
+material = SubResource("ShaderMaterial_81kfc")
+layout_mode = 1
+anchors_preset = 12
+anchor_top = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_top = -111.0
+grow_horizontal = 2
+grow_vertical = 0
+
+[node name="spavn_event" type="Timer" parent="."]
+wait_time = 0.3
+autostart = true
+
+[node name="interface" type="CanvasLayer" parent="."]
+script = SubResource("GDScript_gb4w7")
+
+[node name="main" type="Control" parent="interface"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="health" type="Control" parent="interface/main"]
+layout_mode = 1
+anchors_preset = 10
+anchor_right = 1.0
+grow_horizontal = 2
+script = SubResource("GDScript_50n76")
+
+[node name="panel" type="Panel" parent="interface/main/health"]
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -92.0
+offset_right = 92.0
+offset_bottom = 90.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_me02r")
+
+[node name="hearts" type="HBoxContainer" parent="interface/main/health"]
+layout_mode = 1
+anchors_preset = 10
+anchor_right = 1.0
+offset_bottom = 90.0
+grow_horizontal = 2
+alignment = 1
+
+[node name="wave" type="ColorRect" parent="interface/main"]
+material = SubResource("ShaderMaterial_760ad")
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = SubResource("GDScript_njpu2")
+
+[node name="Panel" type="Panel" parent="interface/main"]
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -143.0
+offset_top = -165.0
+offset_right = 143.0
+offset_bottom = 182.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_dc23f")
+
+[node name="VBoxContainer" type="VBoxContainer" parent="interface/main/Panel"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="Move" type="Label" parent="interface/main/Panel/VBoxContainer"]
+layout_mode = 2
+theme_type_variation = &"HeaderLarge"
+text = "Move!"
+horizontal_alignment = 1
+
+[node name="StartTitle" type="Label" parent="interface/main/Panel/VBoxContainer"]
+layout_mode = 2
+theme_type_variation = &"HeaderMedium"
+text = "Старт"
+horizontal_alignment = 1
+
+[node name="LineEdit" type="LineEdit" parent="interface/main/Panel/VBoxContainer"]
+layout_mode = 2
+text = "Рекорд - 100 минут"
+alignment = 1
+editable = false
+
+[node name="SpinBox" type="SpinBox" parent="interface/main/Panel/VBoxContainer"]
+custom_minimum_size = Vector2(0, 40)
+layout_mode = 2
+min_value = 1.0
+max_value = 3.0
+value = 3.0
+prefix = "Сердец -"
+script = SubResource("GDScript_hauqt")
+
+[node name="OptionButton" type="OptionButton" parent="interface/main/Panel/VBoxContainer"]
+custom_minimum_size = Vector2(0, 40)
+layout_mode = 2
+item_count = 2
+selected = 0
+popup/item_0/text = "Нейроны"
+popup/item_0/id = 0
+popup/item_1/text = "Фракталы"
+popup/item_1/id = 1
+popup/item_1/disabled = true
+script = SubResource("GDScript_pjwwr")
+
+[node name="Button" type="Button" parent="interface/main/Panel/VBoxContainer"]
+self_modulate = Color(0.8, 0.8, 0.8, 1)
+custom_minimum_size = Vector2(0, 40)
+layout_mode = 2
+text = "Начать забег!"
+
+[node name="win" type="Panel" parent="interface/main"]
+visible = false
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -143.0
+offset_top = -82.5
+offset_right = 143.0
+offset_bottom = 82.5
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_dc23f")
+
+[node name="box" type="VBoxContainer" parent="interface/main/win"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="title" type="Label" parent="interface/main/win/box"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 29
+text = "Уровень пройден!"
+horizontal_alignment = 1
+
+[node name="len" type="Label" parent="interface/main/win/box"]
+modulate = Color(0.878431, 0.878431, 0.878431, 1)
+layout_mode = 2
+theme_override_font_sizes/font_size = 18
+text = "Длительность уровня: 99:99
+
+"
+horizontal_alignment = 1
+
+[node name="Button" type="Button" parent="interface/main/win/box"]
+custom_minimum_size = Vector2(0, 40)
+layout_mode = 2
+text = "В меню"
+script = SubResource("GDScript_14thy")
+
+[node name="musik" type="AudioStreamPlayer" parent="."]
+script = SubResource("GDScript_a0fbw")
+
+[connection signal="timeout" from="spavn_event" to="." method="spavn_event"]
+[connection signal="value_changed" from="interface/main/Panel/VBoxContainer/SpinBox" to="interface/main/Panel/VBoxContainer/SpinBox" method="value_changed"]
+[connection signal="item_selected" from="interface/main/Panel/VBoxContainer/OptionButton" to="interface/main/Panel/VBoxContainer/OptionButton" method="item_selected"]
+[connection signal="pressed" from="interface/main/Panel/VBoxContainer/Button" to="interface" method="start_session"]

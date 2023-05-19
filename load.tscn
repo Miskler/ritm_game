@@ -1,0 +1,42 @@
+[gd_scene load_steps=4 format=3 uid="uid://dw7v126dxdxl5"]
+
+[sub_resource type="SphereMesh" id="SphereMesh_iqehx"]
+
+[sub_resource type="Sky" id="Sky_342ja"]
+
+[sub_resource type="Environment" id="Environment_t3cl6"]
+background_mode = 2
+background_energy_multiplier = 0.0
+sky = SubResource("Sky_342ja")
+
+[node name="Control" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="ColorRect" type="ColorRect" parent="."]
+visible = false
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0, 0, 0, 1)
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="."]
+mesh = SubResource("SphereMesh_iqehx")
+
+[node name="Camera3D" type="Camera3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 1.70112)
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="."]
+environment = SubResource("Environment_t3cl6")
+
+[node name="SpotLight3D" type="SpotLight3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 2.52199)
+spot_range = 2.5526
+spot_angle = 34.3871

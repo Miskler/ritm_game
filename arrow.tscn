@@ -1,0 +1,96 @@
+[gd_scene load_steps=5 format=3 uid="uid://4ijtfeoossvu"]
+
+[sub_resource type="GDScript" id="GDScript_aakcp"]
+script/source = "extends CharacterBody2D
+
+var speed = Vector2(0, -20000)
+var style
+
+var delite = false
+func _ready():
+	$triangle.material = $triangle.material.duplicate(true)
+	
+	$triangle.material.set_shader_parameter(\"color\", {\"red\": Color(\"ffffff00\"), \"light\": Color(\"80800000\")}[style])
+	$triangle.material.set_shader_parameter(\"width_parameter\", 0.0)
+	var tween = create_tween()
+	tween.parallel().tween_property(self, \"scale\", Vector2(0.9,0.9), 0.1)
+	tween.parallel().tween_property($triangle.material, \"shader_parameter/color:a\", 1.0, 0.1)
+	await tween.finished
+	tween = create_tween()
+	tween.parallel().tween_property(self, \"scale\", scale/2, 1.0)
+	tween.parallel().tween_property($triangle.material, \"shader_parameter/width_parameter\", 0.5, 0.3)
+
+func del():
+	delite = true
+	var tween = create_tween()
+	tween.parallel().tween_property($triangle.material, \"shader_parameter/color:a\", 0.0, 0.1)
+	tween.parallel().tween_property($triangle.material, \"shader_parameter/width_parameter\", 0.0, 0.2)
+	await tween.finished
+	queue_free()
+
+
+var vec = Vector2()
+func _process(delta):
+	vec = speed*delta
+	vec = vec.rotated(rotation)
+	
+	velocity = vec
+	move_and_slide()
+	
+	if not delite and ((global_position.x >= $\"/root/main_game/interface/main\".size.x/2.1 and rotation_degrees == 90) or (global_position.x <= $\"/root/main_game/interface/main\".size.x/1.9 and rotation_degrees == -90)):
+		del()
+	elif not delite and $Area2D.get_overlapping_bodies().size() > 0:
+		delite = true
+		del()
+		get_node(\"/root/main_game/interface/main/health\").damage()
+		get_node(\"/root/main_game/interface/main/wave\").start_damage(global_position)
+"
+
+[sub_resource type="Shader" id="Shader_egi2s"]
+code = "shader_type canvas_item;
+
+uniform float width_parameter = 0.5;
+uniform vec4 color : source_color;
+
+float triangle(vec2 p, float size) {
+	vec2 q = abs(p);
+	return max(p.y * 0.0, q.x * 0.9966025 + -p.y * (size)) - size * 0.5;
+}
+
+void fragment() {
+	float col = step(triangle(UV-0.5, width_parameter), 0.0);
+	COLOR = color*col;
+}"
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_73k1d"]
+shader = SubResource("Shader_egi2s")
+shader_parameter/width_parameter = 0.5
+shader_parameter/color = Color(0.501961, 0.501961, 0, 0)
+
+[sub_resource type="ConvexPolygonShape2D" id="ConvexPolygonShape2D_utovq"]
+points = PackedVector2Array(0, -45, 30, 45, -30, 45)
+
+[node name="arrow" type="CharacterBody2D"]
+motion_mode = 1
+up_direction = Vector2(0, 1)
+script = SubResource("GDScript_aakcp")
+
+[node name="triangle" type="ColorRect" parent="."]
+material = SubResource("ShaderMaterial_73k1d")
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = -30.0
+offset_top = -45.0
+offset_right = 30.0
+offset_bottom = 45.0
+grow_horizontal = 2
+grow_vertical = 2
+pivot_offset = Vector2(30, 50)
+
+[node name="Area2D" type="Area2D" parent="."]
+metadata/_edit_group_ = true
+
+[node name="collision" type="CollisionShape2D" parent="Area2D"]
+shape = SubResource("ConvexPolygonShape2D_utovq")
+debug_color = Color(0, 0.6, 0.701961, 0.419608)

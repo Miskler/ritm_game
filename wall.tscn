@@ -1,0 +1,46 @@
+[gd_scene load_steps=5 format=3 uid="uid://dobeun5ibqv46"]
+
+[ext_resource type="Script" path="res://wall.gd" id="1_duyke"]
+[ext_resource type="Shader" path="res://main_game.gdshader" id="2_etubs"]
+
+[sub_resource type="CircleShape2D" id="CircleShape2D_gsvpa"]
+radius = 10.0031
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_h6hy3"]
+shader = ExtResource("2_etubs")
+shader_parameter/red = 1.0
+shader_parameter/green = 0.0
+shader_parameter/blue = 0.0
+shader_parameter/outer_radius = 1.0
+shader_parameter/inner_radius = 0.75
+shader_parameter/turn = 0.785451
+shader_parameter/blur = 0.0
+shader_parameter/fill_ratio = 0.725
+
+[node name="Control" type="Control"]
+layout_mode = 3
+anchors_preset = 0
+offset_left = -10.0
+offset_top = -10.0
+offset_right = 10.0
+offset_bottom = 10.0
+scale = Vector2(2, 2)
+pivot_offset = Vector2(10, 10)
+size_flags_horizontal = 0
+script = ExtResource("1_duyke")
+metadata/_edit_use_anchors_ = true
+
+[node name="Area2D" type="Area2D" parent="."]
+position = Vector2(10, 10)
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="Area2D"]
+shape = SubResource("CircleShape2D_gsvpa")
+
+[node name="round" type="ColorRect" parent="."]
+material = SubResource("ShaderMaterial_h6hy3")
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
