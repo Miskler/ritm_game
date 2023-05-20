@@ -1,0 +1,43 @@
+[gd_scene load_steps=3 format=3 uid="uid://bl20cckn8yjks"]
+
+[sub_resource type="Shader" id="Shader_sa0oe"]
+code = "shader_type canvas_item;
+
+uniform float width_parameter = 0.5;
+
+float triangle(vec2 p, float size) {
+	float q = p.y/size;
+	if (float(int(q))/2.f != float(int(q))) {
+		q = 0.0;
+	} else {
+		q = 1.f;
+	}
+	
+	return q;
+}
+
+void fragment() {
+	float col = step(triangle(UV-0.5, width_parameter), 0.0);
+	COLOR = vec4(col);
+}"
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_fqbod"]
+shader = SubResource("Shader_sa0oe")
+shader_parameter/width_parameter = 0.176
+
+[node name="Control" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="ColorRect" type="ColorRect" parent="."]
+material = SubResource("ShaderMaterial_fqbod")
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
