@@ -1,16 +1,19 @@
-[gd_scene load_steps=3 format=3 uid="uid://bl20cckn8yjks"]
+[gd_scene load_steps=5 format=3 uid="uid://bl20cckn8yjks"]
+
+[ext_resource type="Script" path="res://lazer.gd" id="1_u4cyk"]
 
 [sub_resource type="Shader" id="Shader_sa0oe"]
 code = "shader_type canvas_item;
 
 uniform float width_parameter = 0.5;
+uniform vec4 color : source_color;
 
 float triangle(vec2 p, float size) {
 	float q = p.y/size;
 	if (float(int(q))/2.f != float(int(q))) {
 		q = 0.0;
 	} else {
-		q = 1.f;
+		q = 0.1f;
 	}
 	
 	return q;
@@ -18,22 +21,32 @@ float triangle(vec2 p, float size) {
 
 void fragment() {
 	float col = step(triangle(UV-0.5, width_parameter), 0.0);
-	COLOR = vec4(col);
+	vec4 colo = color*col;
+	colo.a += 0.2;
+	COLOR = colo;
 }"
 
 [sub_resource type="ShaderMaterial" id="ShaderMaterial_fqbod"]
 shader = SubResource("Shader_sa0oe")
-shader_parameter/width_parameter = 0.176
+shader_parameter/width_parameter = 0.331
+shader_parameter/color = Color(0, 1, 0.164706, 1)
 
-[node name="Control" type="Control"]
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_fbf5v"]
+size = Vector2(20, 550)
+
+[node name="lazer" type="Control"]
+custom_minimum_size = Vector2(20, 20)
 layout_mode = 3
-anchors_preset = 15
-anchor_right = 1.0
+anchors_preset = 9
 anchor_bottom = 1.0
-grow_horizontal = 2
+offset_left = -10.0
+offset_right = 10.0
 grow_vertical = 2
+scale = Vector2(3, 1)
+pivot_offset = Vector2(10, 0)
+script = ExtResource("1_u4cyk")
 
-[node name="ColorRect" type="ColorRect" parent="."]
+[node name="back" type="ColorRect" parent="."]
 material = SubResource("ShaderMaterial_fqbod")
 layout_mode = 1
 anchors_preset = 15
@@ -41,3 +54,9 @@ anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
+
+[node name="Area2D" type="Area2D" parent="."]
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="Area2D"]
+position = Vector2(10, 275)
+shape = SubResource("RectangleShape2D_fbf5v")

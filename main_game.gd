@@ -13,6 +13,7 @@ func spavn_event():
 		else:
 			call($interface.select_style)
 
+var lazer = true
 func red():
 	if (randf_range(-1, 1) > 0 or $musik.musik_now < 13) and ($musik.musik_now < 38 or ($musik.musik_now > 67 and randf_range(-1, 1) > 0.2)):
 		var pos = Vector2(randf_range($spavn_zone.size.x/1.8,$spavn_zone.size.x),randf_range($spavn_zone.position.y,$spavn_zone.size.y))
@@ -25,7 +26,7 @@ func red():
 		node.style = $interface.select_style
 		
 		$spavn_zone.add_child(node)
-	elif randf_range(-1, 1) > 0:
+	elif randf_range(-1, 1) > 0.4:
 		var pos = Vector2(0,randf_range($spavn_zone.position.y,$spavn_zone.size.y))
 		
 		var node = load("res://arrow.tscn").instantiate()
@@ -39,6 +40,19 @@ func red():
 			node.global_position.x = $spavn_zone.size.x
 		
 		$spavn_zone.add_child(node)
+	elif lazer:
+		lazer = false
+		
+		var node = load("res://lazer.tscn").instantiate()
+		
+		var pos = Vector2(randf_range($spavn_zone.position.x,$spavn_zone.size.x), 0)
+		node.global_position = pos
+		node.style = $interface.select_style
+		
+		$spavn_zone.add_child(node)
+		
+		await get_tree().create_timer(0.5).timeout
+		lazer = true
 	
-	$spavn_event.wait_time = clamp($spavn_event.wait_time-0.002, 0.08, 1)
+	$spavn_event.wait_time = clamp($spavn_event.wait_time-0.0015, 0.09, 1)
 	$spavn_event.start()

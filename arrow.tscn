@@ -8,7 +8,7 @@ var style
 
 var delite = false
 func _ready():
-	$triangle.material = $triangle.material.duplicate(true)
+	$triangle.material = $triangle.material.duplicate()
 	
 	$triangle.material.set_shader_parameter(\"color\", {\"red\": Color(\"ffffff00\"), \"light\": Color(\"80800000\")}[style])
 	$triangle.material.set_shader_parameter(\"width_parameter\", 0.0)
@@ -29,15 +29,16 @@ func del():
 	queue_free()
 
 
-var vec = Vector2()
+@onready var static_path = $\"/root/main_game/interface/main\".size.x/2.1
+@onready var static_path_two = $\"/root/main_game/interface/main\".size.x/1.9
+
 func _process(delta):
-	vec = speed*delta
-	vec = vec.rotated(rotation)
+	velocity = speed*delta
+	velocity = velocity.rotated(rotation)
 	
-	velocity = vec
 	move_and_slide()
 	
-	if not delite and ((global_position.x >= $\"/root/main_game/interface/main\".size.x/2.1 and rotation_degrees == 90) or (global_position.x <= $\"/root/main_game/interface/main\".size.x/1.9 and rotation_degrees == -90)):
+	if not delite and ((global_position.x >= static_path and rotation_degrees == 90) or (global_position.x <= static_path_two and rotation_degrees == -90)):
 		del()
 	elif not delite and $Area2D.get_overlapping_bodies().size() > 0:
 		delite = true

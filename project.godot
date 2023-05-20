@@ -28,6 +28,12 @@ window/handheld/orientation=4
 
 project/assembly_name="Move!"
 
+[editor]
+
+movie_writer/movie_file="C:/Users/KAMA/Documents/GitHub/ritm_game/export/movie.avi"
+movie_writer/disable_vsync=true
+movie_writer/fps=20
+
 [input_devices]
 
 pointing/emulate_touch_from_mouse=true

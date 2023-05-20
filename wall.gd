@@ -3,7 +3,7 @@ extends Control
 @onready var round = $round
 var style = "red"
 func _ready():
-	round.material = round.material.duplicate(true)
+	round.material = round.material.duplicate()
 	
 	var loop = create_tween().set_loops()
 	loop.tween_property(round.material, "shader_parameter/turn", 1.0, 0.4)

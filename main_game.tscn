@@ -1,8 +1,7 @@
-[gd_scene load_steps=23 format=3 uid="uid://bcj8ktkwljj60"]
+[gd_scene load_steps=22 format=3 uid="uid://bcj8ktkwljj60"]
 
 [ext_resource type="FontFile" uid="uid://c6r8r8i8mb4i6" path="res://IBMPlexSans-Medium.ttf" id="1_mnj52"]
 [ext_resource type="Script" path="res://main_game.gd" id="1_uyejn"]
-[ext_resource type="PackedScene" uid="uid://fyawyhvn4e3l" path="res://back/main.tscn" id="2_qktan"]
 [ext_resource type="PackedScene" uid="uid://cmsgggyogg5hq" path="res://player.tscn" id="3_5ukh5"]
 
 [sub_resource type="Theme" id="Theme_ka2el"]
@@ -717,7 +716,6 @@ func recovery():
 	var heart = preload(\"res://heart.tscn\").instantiate()
 	$hearts.add_child(heart)
 	heart.recovery()
-	print(\"RECOVERY\")
 
 func _process(_delta):
 	health = $hearts.get_child_count()
@@ -794,9 +792,7 @@ func value_changed(value):
 	print(\"\")
 	var r = value-$\"../../../health\".health
 	
-	print(r)
 	for i in range(abs(r)):
-		print(\"FOR\")
 		if r < 0:
 			$\"../../../health\".damage(true)
 		elif r > 0:
@@ -907,9 +903,6 @@ anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
 
-[node name="red" parent="backs" instance=ExtResource("2_qktan")]
-layout_mode = 1
-
 [node name="ColorRect" type="ColorRect" parent="backs"]
 visible = false
 material = SubResource("ShaderMaterial_vbsth")
@@ -920,8 +913,23 @@ anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
 
-[node name="player" parent="." instance=ExtResource("3_5ukh5")]
-position = Vector2(563, 297)
+[node name="red" type="ColorRect" parent="backs"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0, 0, 0, 1)
+
+[node name="shadow" type="ColorRect" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0, 0, 0, 0.5)
 
 [node name="spavn_zone" type="Control" parent="."]
 layout_mode = 1
@@ -931,6 +939,9 @@ anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
 metadata/_edit_lock_ = true
+
+[node name="player" parent="." instance=ExtResource("3_5ukh5")]
+position = Vector2(563, 297)
 
 [node name="spectrum" type="ColorRect" parent="."]
 material = SubResource("ShaderMaterial_81kfc")
